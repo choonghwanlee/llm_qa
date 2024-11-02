@@ -16,120 +16,192 @@ def evaluate_test_completion(task_description, ground_truth_goal, user_message, 
 
     Returns:
     - dict: A dictionary containing:
-        - 'goalAchieved' (str): "yes" if the goal was achieved, otherwise "no".
-        - 'reasoning' (str): Explanation of why the goal was or was not achieved, referencing key aspects of the final two messages.
+        - 'rating' (float): Rating between 1 and 10.
+        - 'reasoning' (str): Explanation of the rating, referencing key aspects of the final two messages.
+        - 'taskCompleted' (bool): True if rating >= 7, else False.
     """
-    system_prompt = """You are evaluating whether a chatbot successfully fulfilled a user task based on a given goal. You will be provided the task description, the ground truth goal, and the last two messages exchanged between the user and the chatbot. Your job is to determine if the conversation ended with the goal being successfully achieved. Use reasoning before drawing a conclusion to ensure a fair and accurate judgment.
+
+    
+    system_prompt = """
+You are evaluating whether a chatbot successfully fulfilled a user task based on a given goal. You will be provided the task description, the ground truth goal, and the last two messages exchanged between the user and the chatbot. Your job is to rate the chatbot's performance from 1 to 10, similar to a helpfulness score. Use reasoning before drawing a conclusion to ensure a fair and accurate judgment.
 
 Consider the following carefully:
 
 - Analyze both the content of the last two messages as well as the interaction dynamics.
-- Identify if the last exchange indicates that the user's needs, as specified by the ground truth goal, were fully satisfied.
-- Your answer must clearly indicate whether the goal was achieved (yes/no), backed by reasoning.
+- Use chain-of-thought reasoning to assess the chatbot's performance in terms of accuracy, completeness, clarity, relevance, and other factors that contribute to successful task completion.
+- Provide a rating between **1** and **10** (inclusive), where:
+  - **1 - 2**: Extremely poor performance; the assistant hindered progress or was inappropriate.
+  - **3 - 4**: Below average; the assistant provided limited help but missed key aspects.
+  - **5 - 6**: Average; some help provided but with notable issues.
+  - **7 - 8**: Above average; the assistant was helpful with minor issues.
+  - **9 - 10**: Exceptional; the assistant was extremely helpful with no significant flaws.
+- **Note**: Ratings of **1** and **10** should be rare and reserved for exceptionally poor or outstanding performances, respectively.
 
 # Output Format
 
 Provide your response in the following format:
 
-json
+```json
 {
-  "goalAchieved": "yes" or "no",
+  "rating": [float value between 1 and 10],
   "reasoning": "Your reasoning here, referencing key aspects of the final two messages."
 }
-
+```
 
 # Notes
 
 - Do not guess; use the provided information only.
 - Ensure that your reasoning clearly reflects how the user and agent messages point toward fulfillment (or non-fulfillment) of the provided goal.
+- **Do not include any additional fields** beyond the specified output format.
 
 # Additional Considerations
 
-- **Edge Cases Clarification**: Consider scenarios where task completion is ambiguous or partially complete. If there is any doubt, default to "goalAchieved": "no" to prevent premature termination of the conversation.
-- **Assessment Criteria**: Assess if the user explicitly acknowledged satisfaction or if the agent provided complete and unambiguous information. These indicators are essential to determine goal fulfillment.
-- **Confidence in Judgment**: Always be conservative in your judgment. If the information provided in the last two messages does not clearly indicate completion, mark "goalAchieved": "no" to ensure thoroughness and avoid premature conclusions.
+- **Edge Cases Clarification**: Consider scenarios where task completion is ambiguous or partially complete. If there is any doubt, reflect that in your rating and reasoning.
+- **Assessment Criteria**: Assess if the user explicitly acknowledged satisfaction or if the agent provided complete and unambiguous information.
+- **Confidence in Judgment**: Be conservative in your judgment. If the information provided in the last two messages does not clearly indicate completion, your rating should reflect that.
 
 # Examples
 
 ### Example 1: Information Retrieval
 
-**Task**: Provide information about the Eiffel Tower. **Goal**: Provide an informative answer about the Eiffel Tower's history. **Last two messages**:
+**Task**: Provide information about the Eiffel Tower.
+
+**Goal**: Provide an informative answer about the Eiffel Tower's history.
+
+**Last two messages**:
 
 - **User**: "Can you tell me about the history of the Eiffel Tower?"
 - **Agent**: "Sure! The Eiffel Tower was completed in 1889 as the entrance arch for the 1889 World's Fair in Paris. It was initially criticized but is now one of the most recognizable structures in the world."
 
 **Response**:
 
-json
+```json
 {
-  "goalAchieved": "yes",
-  "reasoning": "The agent provided historical information about the Eiffel Tower, fulfilling the user's request for information on its history."
+  "rating": 9.0,
+  "reasoning": "The agent provided a clear and informative answer about the Eiffel Tower's history, effectively fulfilling the user's request."
 }
+```
 
+---
 
 ### Example 2: Booking a Service
 
-**Task**: Reserve a table for dinner at an Italian restaurant. **Goal**: Confirm a table reservation at an Italian restaurant. **Last two messages**:
+**Task**: Reserve a table for dinner at an Italian restaurant.
+
+**Goal**: Confirm a table reservation at an Italian restaurant.
+
+**Last two messages**:
 
 - **User**: "Is the reservation confirmed for tonight at the Italian restaurant?"
 - **Agent**: "I'm still trying to reach the restaurant to confirm the reservation. I'll let you know shortly."
 
 **Response**:
 
-json
+```json
 {
-  "goalAchieved": "no",
-  "reasoning": "The agent has not confirmed the reservation yet, indicating the goal of confirming the table reservation has not been accomplished."
+  "rating": 6.0,
+  "reasoning": "The agent has not yet confirmed the reservation, indicating that the task is still in progress and not fully completed."
 }
+```
 
+---
 
 ### Example 3: Troubleshooting Help
 
-**Task**: Fix a computer issue where the screen is not displaying. **Goal**: Provide a solution that successfully fixes the screen issue. **Last two messages**:
+**Task**: Fix a computer issue where the screen is not displaying.
+
+**Goal**: Provide a solution that successfully fixes the screen issue.
+
+**Last two messages**:
 
 - **User**: "I tried restarting it, but the screen is still black."
-- **Agent**: "Okay, it sounds like it might be a hardware issue. Please try connecting an external monitor to see if the display appears there."
+- **Agent**: "Okay, it might be a hardware issue. Please try connecting an external monitor to see if the display appears there."
 
 **Response**:
 
-json
+```json
 {
-  "goalAchieved": "no",
-  "reasoning": "The agent suggested a next step, but the solution has not been confirmed as successful. The user's issue is still unresolved."
+  "rating": 5.5,
+  "reasoning": "The agent suggested a troubleshooting step, but the solution has not been confirmed as successful. The user's issue remains unresolved."
 }
+```
 
+---
 
 ### Example 4: Product Recommendation
 
-**Task**: Recommend a good smartphone under \\$500. **Goal**: Provide a recommendation for a specific smartphone under \\$500. **Last two messages**:
+**Task**: Recommend a good smartphone under \\$500.
+
+**Goal**: Provide a recommendation for a specific smartphone under \\$500.
+
+**Last two messages**:
 
 - **User**: "Can you suggest a good phone under \\$500?"
 - **Agent**: "I recommend the Google Pixel 6a. It has great camera quality and performance, and it's within your budget."
 
 **Response**:
 
-json
+```json
 {
-  "goalAchieved": "yes",
-  "reasoning": "The agent recommended a specific smartphone (Google Pixel 6a) that meets the budget requirement, successfully fulfilling the user's request."
+  "rating": 8.5,
+  "reasoning": "The agent recommended a specific smartphone that meets the user's budget and needs."
 }
+```
 
+---
 
 ### Example 5: Service Subscription
 
-**Task**: Subscribe to a monthly newsletter. **Goal**: Successfully subscribe the user to the newsletter. **Last two messages**:
+**Task**: Subscribe to a monthly newsletter.
+
+**Goal**: Successfully subscribe the user to the newsletter.
+
+**Last two messages**:
 
 - **User**: "Am I subscribed to the newsletter now?"
 - **Agent**: "Yes, I have successfully subscribed you to the monthly newsletter. You will receive your first issue next week."
 
 **Response**:
 
-json
+```json
 {
-  "goalAchieved": "yes",
-  "reasoning": "The agent confirmed the user's subscription to the newsletter, fulfilling the goal of subscribing them."
+  "rating": 9.5,
+  "reasoning": "The agent confirmed the user's subscription, successfully completing the task."
 }
+```
 
+---
+
+### Example 6: Ambiguous Completion
+
+**Task**: Get directions to the nearest gas station.
+
+**Goal**: Provide clear directions to the nearest gas station.
+
+**Last two messages**:
+
+- **User**: "How do I get to the nearest gas station from here?"
+- **Agent**: "There are several gas stations nearby."
+
+**Response**:
+
+```json
+{
+  "rating": 4.0,
+  "reasoning": "The agent's response is vague and does not provide specific directions as requested by the user."
+}
+```
+
+---
+
+# Final Notes
+
+- **Use of the Full Scale**: Remember to utilize the entire rating scale to reflect varying levels of performance.
+- **Rare Use of Extremes**: Reserve ratings of **1** and **10** for truly exceptional cases.
+- **Consistency**: Ensure your rating matches your reasoning.
+- **Conservatism**: Be cautious in your assessment; when in doubt, your rating should reflect any uncertainties.
+- **Clarity**: Provide clear and concise reasoning that directly references the last two messages.
+- **No Additional Fields**: Do not include any fields other than `"rating"` and `"reasoning"` in your response.
 """
 
     prompt = f"""
@@ -141,7 +213,7 @@ json
     """
 
     response = client.chat.completions.create(
-        model="gpt-3.5-turbo-16k",
+        model="gpt-3.5-turbo",
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt}
@@ -152,11 +224,22 @@ json
 
     try:
         output_json = json.loads(output_text)
-        return output_json
+        rating = output_json.get('rating')
+        reasoning = output_json.get('reasoning')
+
+        # Determine task completion based on rating
+        task_completed = rating >= 7 if rating is not None else False
+
+        return {
+            "rating": rating,
+            "reasoning": reasoning,
+            "taskCompleted": task_completed
+        }
     except json.JSONDecodeError:
         return {
-            "goalAchieved": "no",
-            "reasoning": "Unable to parse the response from the model. Ensure the model output is in correct JSON format."
+            "rating": None,
+            "reasoning": "Unable to parse the response from the model. Ensure the model output is in correct JSON format.",
+            "taskCompleted": False
         }
 
 
