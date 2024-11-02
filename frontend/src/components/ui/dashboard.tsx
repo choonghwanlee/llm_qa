@@ -64,7 +64,10 @@ export default function Component() {
       {/* Top Navigation */}
       <header className="border-b">
         <div className="flex h-16 items-center px-4">
-          <div className="text-2xl font-bold">Logo</div>
+          <div className="flex items-center">
+            <img src="/logo.svg" alt="Logo" className="h-10 w-10" />
+            <span className="ml-2 text-xl font-bold">Evalon</span>
+          </div>
           <nav className="ml-6 flex items-center space-x-4">
             <Button variant="default">Dashboard</Button>
             <DropdownMenu>
