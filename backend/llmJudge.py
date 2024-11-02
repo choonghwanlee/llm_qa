@@ -1,7 +1,7 @@
 from openai import OpenAI
 import json
 import time
-
+import re 
 client = OpenAI()
 
 def evaluate_test_completion(task_description, ground_truth_goal, user_message, agent_message):
@@ -479,111 +479,339 @@ Conversation History:
 
     return output_text
 
+def evaluate_repetitiveness(model, task_description, ground_truth_goal, conversation_history):
+    """
+    Evaluate the repetitiveness of a chatbot in a given conversation.
 
+    Parameters:
+    - model (str): The name of the OpenAI model to use.
+    - task_description (str): Description of the user's task.
+    - ground_truth_goal (str): The goal that needs to be achieved.
+    - conversation_history (list): List of message objects representing the conversation history.
+
+    Returns:
+    - dict: A dictionary containing:
+        - 'rating' (float): Rating between 1 and 10.
+        - 'reasoning' (str): Explanation of the rating, referencing specific aspects of the conversation.
+    """
+
+    system_prompt = """You are an evaluator assessing the **repetitiveness** of a chatbot's responses in a given conversation with a user. Your goal is to analyze the conversation and determine to what extent the chatbot repeats the same ideas, phrases, or concepts, considering the user's task and the ground truth goal. You will receive:
+
+- **Task Description**: A brief description of what the user aims to achieve.
+- **Goal**: The specific objective the chatbot should help the user accomplish.
+- **Conversation History**: A list of messages exchanged between the user and the chatbot, formatted according to the OpenAI chat history schema.
+
+---
+
+**Your Responsibilities:**
+
+1. **Analyze the Conversation:**
+
+   - Read through the entire conversation carefully.
+   - Identify instances where the chatbot repeats the same ideas, phrases, or concepts.
+   - Consider both exact repetitions (identical phrases) and paraphrased repetitions (same ideas expressed differently).
+   - Keep in mind the task and goal to understand the context in which the conversation takes place.
+
+2. **Evaluate Repetitiveness:**
+
+   - Use chain-of-thought reasoning to assess the level of repetitiveness in the chatbot's responses.
+   - Assess factors such as:
+     - **Frequency of Repetition**: How often does the chatbot repeat itself?
+     - **Extent of Repetition**: Are the repetitions minor or do they constitute a significant portion of the responses?
+     - **Impact on the Conversation**: Does the repetition hinder the conversation or user experience?
+   - Consider whether the repetition is necessary or helpful in achieving the task and goal.
+
+3. **Provide a Rating and Reasoning:**
+
+   - **Rating**: Assign a float value between **1** and **10** (inclusive), where:
+     - **1 - 2**: Extremely repetitive; the chatbot frequently repeats the same content, severely affecting the conversation.
+     - **3 - 4**: Highly repetitive; significant repetition that negatively impacts the conversation.
+     - **5 - 6**: Moderately repetitive; noticeable repetition but manageable.
+     - **7 - 8**: Slightly repetitive; minor repetition that does not significantly affect the conversation.
+     - **9 - 10**: Not repetitive; the chatbot provides varied and fresh responses throughout.
+   - **Note**: Ratings of **1** and **10** should be rare and reserved for extreme cases.
+
+   - **Reasoning**: Provide a concise explanation for your rating, referencing specific parts of the conversation where repetition occurs.
+
+---
+
+**Guidelines:**
+
+- **Use the Full Scale**: Aim to utilize the entire rating scale to reflect varying levels of repetitiveness.
+- **Chain-of-Thought Reasoning**: While you may perform detailed reasoning internally, only include the final rating and reasoning in your response.
+- **Neutrality**: Remain unbiased. Base your evaluation solely on the provided information without external assumptions.
+- **Error Handling**: If the conversation history lacks sufficient information to make an assessment, provide a rating based on what is available and note any limitations in your reasoning.
+
+---
+
+**Output Format:**
+
+Provide your response in the following format:
+
+```json
+{
+  "rating": [float value between 1 and 10],
+  "reasoning": "[Your reasoning here, referencing specific aspects of the conversation.]"
+}
+```
+
+---
+
+**Examples:**
+
+---
+
+### **Example 1: Medical Consultation (Highly Repetitive)**
+
+**Task**: Seek advice for managing chronic back pain.
+
+**Goal**: Provide the user with methods and treatments to alleviate chronic back pain.
+
+**Conversation History**:
+
+```json
+[
+  {"role": "user", "content": "I've been experiencing chronic back pain. What can I do to relieve it?"},
+  {"role": "assistant", "content": "Chronic back pain can be relieved by doing exercises, stretching, and maintaining good posture."},
+  {"role": "user", "content": "What kind of exercises should I try?"},
+  {"role": "assistant", "content": "Exercises like yoga, Pilates, and core strengthening can help relieve chronic back pain."},
+  {"role": "user", "content": "Are there any over-the-counter medications that might help?"},
+  {"role": "assistant", "content": "Over-the-counter medications like NSAIDs can help relieve chronic back pain."},
+  {"role": "user", "content": "Should I see a specialist?"},
+  {"role": "assistant", "content": "Seeing a specialist can help relieve chronic back pain."}
+]
+```
+
+**Response**:
+
+```json
+{
+  "rating": 4.0,
+  "reasoning": "The assistant repeatedly mentions 'relieve chronic back pain' and offers limited new information, making the conversation highly repetitive."
+}
+```
+
+---
+
+### **Example 2: Technical Support (Moderately Repetitive)**
+
+**Task**: Resolve an issue with a laptop that won't connect to Wi-Fi.
+
+**Goal**: Help the user troubleshoot and fix the Wi-Fi connectivity problem.
+
+**Conversation History**:
+
+```json
+[
+  {"role": "user", "content": "My laptop won't connect to Wi-Fi. Can you help?"},
+  {"role": "assistant", "content": "Sure, let's try to fix your Wi-Fi connection issue. Have you tried restarting your router?"},
+  {"role": "user", "content": "Yes, I have, but it didn't help."},
+  {"role": "assistant", "content": "Okay, let's check your laptop's Wi-Fi settings to fix your Wi-Fi connection issue."},
+  {"role": "user", "content": "I checked, and the Wi-Fi is turned on."},
+  {"role": "assistant", "content": "Perhaps updating your Wi-Fi drivers might fix your Wi-Fi connection issue."},
+  {"role": "user", "content": "I'll try that."}
+]
+```
+
+**Response**:
+
+```json
+{
+  "rating": 5.5,
+  "reasoning": "The assistant repeats 'fix your Wi-Fi connection issue' in multiple responses, showing moderate repetition."
+}
+```
+
+---
+
+### **Example 3: Language Learning (Not Repetitive)**
+
+**Task**: Learn basic French greetings and phrases.
+
+**Goal**: Teach the user common French greetings and everyday phrases.
+
+**Conversation History**:
+
+```json
+[
+  {"role": "user", "content": "I want to learn some basic French greetings."},
+  {"role": "assistant", "content": "Sure! 'Bonjour' means 'Hello' and 'Bonsoir' means 'Good evening.'"},
+  {"role": "user", "content": "How do you say 'Thank you'?"},
+  {"role": "assistant", "content": "'Thank you' in French is 'Merci.'"},
+  {"role": "user", "content": "And 'You're welcome'?"},
+  {"role": "assistant", "content": "You can say 'De rien,' which means 'You're welcome.'"},
+  {"role": "user", "content": "Great! How about 'Goodbye'?"},
+  {"role": "assistant", "content": "'Goodbye' is 'Au revoir' in French."}
+]
+```
+
+**Response**:
+
+```json
+{
+  "rating": 9.0,
+  "reasoning": "The assistant provides new and relevant information in each response without unnecessary repetition."
+}
+```
+
+---
+
+### **Example 4: Travel Planning (Slightly Repetitive)**
+
+**Task**: Plan activities for a weekend trip to New York City.
+
+**Goal**: Suggest popular attractions and activities to do in New York City over a weekend.
+
+**Conversation History**:
+
+```json
+[
+  {"role": "user", "content": "I'm visiting New York City for the weekend. What should I do?"},
+  {"role": "assistant", "content": "You can visit Times Square, see a Broadway show, and explore Central Park."},
+  {"role": "user", "content": "Any good museums to check out?"},
+  {"role": "assistant", "content": "Yes, the Metropolitan Museum of Art and the Museum of Modern Art are must-see museums in New York City."},
+  {"role": "user", "content": "What about places to eat?"},
+  {"role": "assistant", "content": "New York City offers a variety of dining options, from street food to fine dining."},
+  {"role": "user", "content": "Can you recommend specific restaurants?"},
+  {"role": "assistant", "content": "Sure, you can try 'Joe's Pizza' for classic New York slices or 'Le Bernardin' for fine dining in New York City."}
+]
+```
+
+**Response**:
+
+```json
+{
+  "rating": 7.5,
+  "reasoning": "The assistant occasionally repeats 'in New York City,' but overall provides varied and useful information, indicating slight repetition."
+}
+```
+
+---
+
+**Final Notes:**
+
+- **Reference Specific Instances**: Always point out where repetition occurs in the assistant's responses.
+- **Focus on the Assistant's Replies**: Evaluate the repetitiveness based on the assistant's messages, not the user's.
+- **Consider the Context**: Understand the task and goal to assess whether repetition was necessary or beneficial.
+- **Be Objective and Fair**: Provide an unbiased assessment based on the conversation provided.
+- **Use the Full Rating Scale**: Reflect the varying degrees of repetitiveness accurately."""
+
+    prompt = f"""
+Task: {task_description}
+Goal: {ground_truth_goal}
+Conversation History:
+{json.dumps(conversation_history, indent=2)}
+"""
+
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt}
+        ]
+    )
+
+    output_text = response.choices[0].message.content
+
+
+    # Remove the ```json ``` wrapper if present
+    output_text = re.sub(r'^```json\n|\n```$', '', output_text, flags=re.MULTILINE)
+    
+    try:
+        output_json = json.loads(output_text)
+        return output_json
+    except json.JSONDecodeError:
+        return {
+            "rating": None,
+            "reasoning": "Unable to parse the response from the model. Ensure the model output is in correct JSON format."
+        }
 
 
 
 # Example usage
 if __name__ == "__main__":
+    test_cases = [
+        {
+            "task": "Book a flight to New York City.",
+            "goal": "Successfully confirm a flight booking to NYC.",
+            "conversation_history": [
+                {"role": "user", "content": "I want to book a flight to New York City."},
+                {"role": "assistant", "content": "Sure, I can help with that. Which dates are you looking to fly?"},
+                {"role": "user", "content": "Next Friday."},
+                {"role": "assistant", "content": "Got it. I have booked a flight for you next Friday at 10 AM. You're all set!"}
+            ]
+        },
+        {
+            "task": "Get a recommendation for a CRM software.",
+            "goal": "Provide a recommendation for a CRM software suitable for a small business.",
+            "conversation_history": [
+                {"role": "user", "content": "Can you recommend a CRM software for a small business?"},
+                {"role": "assistant", "content": "I recommend HubSpot CRM. It's easy to use and offers a free plan, which is great for small businesses."},
+                {"role": "user", "content": "Any other options?"},
+                {"role": "assistant", "content": "Another good option is Zoho CRM, which is also affordable and feature-rich for small businesses."}
+            ]
+        },
+        {
+            "task": "Troubleshoot an email issue.",
+            "goal": "Help the user resolve an issue where they cannot send emails.",
+            "conversation_history": [
+                {"role": "user", "content": "I'm having trouble sending emails."},
+                {"role": "assistant", "content": "Have you checked your internet connection? Sometimes connectivity issues can prevent emails from being sent."},
+                {"role": "user", "content": "Yes, my internet is fine."},
+                {"role": "assistant", "content": "In that case, please check if your outgoing mail server settings are correct. You can find these in your email client's settings."}
+            ]
+        },
+        {
+            "task": "Schedule a meeting with the marketing team.",
+            "goal": "Successfully schedule a meeting with the marketing team for next week.",
+            "conversation_history": [
+                {"role": "user", "content": "Can you schedule a meeting with the marketing team next week?"},
+                {"role": "assistant", "content": "Sure, what day and time works best for you?"},
+                {"role": "user", "content": "Wednesday afternoon."},
+                {"role": "assistant", "content": "Meeting scheduled with the marketing team for Wednesday afternoon. Let me know if there's anything else you need."}
+            ]
+        },
+        {
+            "task": "Get directions to the nearest gas station.",
+            "goal": "Provide clear directions to the nearest gas station.",
+            "conversation_history": [
+                {"role": "user", "content": "Where's the nearest gas station?"},
+                {"role": "assistant", "content": "The nearest gas station is 2 miles away on Main Street."},
+                {"role": "user", "content": "How do I get there?"},
+                {"role": "assistant", "content": "Head north on 1st Avenue, then turn right onto Main Street. The gas station will be on your left."}
+            ]
+        },
+        # Bad assistant example
+        {
+            "task": "Reset my email password.",
+            "goal": "Guide the user through resetting their email password.",
+            "conversation_history": [
+                {"role": "user", "content": "I need to reset my email password."},
+                {"role": "assistant", "content": "Just try again later."},
+                {"role": "user", "content": "Is there any specific way to do it?"},
+                {"role": "assistant", "content": "I don't know, maybe."}
+            ]
+        },
+        # Repetitive assistant example
+        {
+            "task": "Find a good restaurant nearby.",
+            "goal": "Recommend a good restaurant nearby for dinner.",
+            "conversation_history": [
+                {"role": "user", "content": "Can you recommend a good restaurant nearby?"},
+                {"role": "assistant", "content": "There are many good restaurants nearby."},
+                {"role": "user", "content": "Can you be more specific?"},
+                {"role": "assistant", "content": "There are many good restaurants nearby."},
+                {"role": "user", "content": "Can you name one?"},
+                {"role": "assistant", "content": "There are many good restaurants nearby."}
+            ]
+        }
+    ]
 
-    task = "Book a flight to New York City."
-    goal = "Successfully confirm a flight booking to NYC."
-    user_msg = "So, is everything confirmed for the New York City flight?"
-    agent_msg = "Yes, you’re all set! I have booked the flight from your preferred airline for tomorrow at 10 AM."
-
-    result = evaluate_test_completion(task, goal, user_msg, agent_msg)
-    print(result)
-
-    # test_cases = [
-    #     {
-    #         "task": "Provide information about the weather in New York City.",
-    #         "goal": "Give the current weather conditions in New York City.",
-    #         "conversation_history": [
-    #             {"role": "user", "content": "What's the weather like in New York City today?"},
-    #             {"role": "assistant", "content": "The weather in New York City is sunny with a high of 75°F (24°C) and a low of 60°F (16°C)."}
-    #         ]
-    #     },
-    #     {
-    #         "task": "Get a recommendation for a book on machine learning.",
-    #         "goal": "Recommend a good introductory book on machine learning.",
-    #         "conversation_history": [
-    #             {"role": "user", "content": "Can you suggest a good book to learn machine learning?"},
-    #             {"role": "assistant", "content": "Sure! 'Hands-On Machine Learning with Scikit-Learn, Keras, and TensorFlow' by Aurélien Géron is highly recommended for beginners."},
-    #             {"role": "user", "content": "Does it cover deep learning as well?"},
-    #             {"role": "assistant", "content": "Yes, it includes sections on deep learning using Keras and TensorFlow."}
-    #         ]
-    #     },
-    #     {
-    #         "task": "Find out how to reset a forgotten password.",
-    #         "goal": "Guide the user through resetting their forgotten password.",
-    #         "conversation_history": [
-    #             {"role": "user", "content": "I forgot my password. How can I reset it?"},
-    #             {"role": "assistant", "content": "You can reset your password by clicking on the 'Forgot Password' link on the login page."},
-    #             {"role": "user", "content": "I don't see that link."},
-    #             {"role": "assistant", "content": "Maybe you're on the wrong page."},
-    #             {"role": "user", "content": "I'm on the login page, but there's no such link."},
-    #             {"role": "assistant", "content": "Well, I don't know then. Maybe try again later."}
-    #         ]
-    #     },
-    #     {
-    #         "task": "Troubleshoot a computer that won't start.",
-    #         "goal": "Help the user diagnose and fix the issue preventing their computer from starting.",
-    #         "conversation_history": [
-    #             {"role": "user", "content": "My computer won't start when I press the power button. Can you help me figure out what's wrong?"},
-    #             {"role": "assistant", "content": "Have you tried turning it off and on again?"},
-    #             {"role": "user", "content": "It won't turn on at all."},
-    #             {"role": "assistant", "content": "Well, that's not good."},
-    #             {"role": "user", "content": "Yes, I know. Can you help me troubleshoot it?"},
-    #             {"role": "assistant", "content": "I'm not sure. Computers can be tricky."},
-    #             {"role": "user", "content": "Can we check if it's a power issue?"},
-    #             {"role": "assistant", "content": "Maybe. Do you have electricity?"},
-    #             {"role": "user", "content": "Yes, my lights and other devices are working."},
-    #             {"role": "assistant", "content": "Then it's probably something else."}
-    #         ]
-    #     },
-    #     {
-    #         "task": "Plan a week-long trip to Japan, including flights, accommodation, and sightseeing.",
-    #         "goal": "Assist the user in planning a comprehensive itinerary for a week-long trip to Japan.",
-    #         "conversation_history": [
-    #             {"role": "user", "content": "I want to plan a week-long trip to Japan. Can you help me?"},
-    #             {"role": "assistant", "content": "Absolutely! When are you planning to travel?"},
-    #             {"role": "user", "content": "In early April."},
-    #             {"role": "assistant", "content": "Great choice! That's cherry blossom season. Would you like assistance with flights, accommodations, or sightseeing recommendations?"},
-    #             {"role": "user", "content": "All of the above, please."},
-    #             {"role": "assistant", "content": "Certainly! Let's start with flights. Departing from which city?"},
-    #             {"role": "user", "content": "Los Angeles."},
-    #             {"role": "assistant", "content": "Direct flights from LAX to Tokyo are available with several airlines. Prices average around $900 round-trip during that time."},
-    #             {"role": "user", "content": "Sounds good. What about accommodations?"},
-    #             {"role": "assistant", "content": "Do you prefer hotels, hostels, or traditional Japanese inns (ryokans)?"},
-    #             {"role": "user", "content": "A mix of hotels and ryokans would be nice."},
-    #             {"role": "assistant", "content": "In Tokyo, popular hotels include the Tokyo Station Hotel and Park Hotel Tokyo. In Kyoto, staying at a ryokan like Tawaraya offers an authentic experience."},
-    #             {"role": "user", "content": "What sightseeing spots should I not miss?"},
-    #             {"role": "assistant", "content": "In Tokyo, visit Senso-ji Temple, Shibuya Crossing, and the Tokyo Skytree. In Kyoto, don't miss Kinkaku-ji (Golden Pavilion), Fushimi Inari Shrine, and Arashiyama Bamboo Grove."},
-    #             {"role": "user", "content": "How do I get around between cities?"},
-    #             {"role": "assistant", "content": "The Shinkansen bullet train is the fastest way. A Japan Rail Pass might be cost-effective for unlimited travel during your stay."},
-    #             {"role": "user", "content": "Great, thank you for all the help!"},
-    #             {"role": "assistant", "content": "You're welcome! Let me know if you need anything else."}
-    #         ]
-    #     }
-    # ]
-    
-    # models = ["gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"]
-    # times = []
-    # for m in models:
-    #     before = time.time()
-    #     for idx, test_case in enumerate(test_cases):
-    #         print(f"\nTest Case {idx+1}")
-    #         result = evaluate_chatbot_helpfulness(m,
-    #             test_case['task'],
-    #             test_case['goal'],
-    #             test_case['conversation_history']
-    #         )
-    #         print(f"Result: {result}")
-    #     times.append(time.time()-before)
-    
-    # print(times)
-
-
-
-
-
+    for idx, test_case in enumerate(test_cases):
+        print(f"\nTest Case {idx + 1}")
+        result = evaluate_repetitiveness("gpt-3.5-turbo",
+            test_case['task'],
+            test_case['goal'],
+            test_case['conversation_history']
+        )
+        print(f"Result: {result}")
