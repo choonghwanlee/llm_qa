@@ -2,6 +2,12 @@ from openai import OpenAI
 import json
 import time
 import re 
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 client = OpenAI()
 
 def evaluate_test_completion(task_description, ground_truth_goal, user_message, agent_message):
