@@ -75,16 +75,19 @@ export default function ViewChatHistory() {
     const fetchPastConversations = async () => {
       const { data, error } = await supabase
         .from("LLMQA")
-        .select("test_id, created_at, task")
+        .select("test_id, created_at, task, conversation")
 
       if (error) {
         console.error("Error fetching past conversations:", error)
       } else {
-        const formattedConversations = data.map((test: any) => ({
-          id: test.test_id,
-          title: test.task.split(" ").slice(0, 4).join(" ") + (test.task.split(" ").length > 4 ? "..." : ""),
-          date: new Date(test.created_at).toLocaleDateString(),
-        }))
+        const formattedConversations = data
+          .filter((test: any) => test.conversation && test.conversation.length > 0) // Filter out empty conversations
+          .map((test: any) => ({
+            id: test.test_id,
+            title: test.task.split(" ").slice(0, 4).join(" ") + (test.task.split(" ").length > 4 ? "..." : ""),
+            date: test.created_at,
+          }))
+          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) // Sort in reverse chronological order
         setPastConversations(formattedConversations)
       }
     }
@@ -115,7 +118,7 @@ export default function ViewChatHistory() {
                       {conversation.title}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {conversation.date}
+                      {new Date(conversation.date).toLocaleDateString()}
                     </span>
                   </div>
                 </Button>
