@@ -22,17 +22,17 @@ def evaluate_test_completion(task_description, ground_truth_goal, user_message, 
     """
 
     
-    system_prompt = """
-You are evaluating whether a chatbot successfully fulfilled a user task based on a given goal. You will be provided the task description, the ground truth goal, and the last two messages exchanged between the user and the chatbot. Your job is to rate the chatbot's performance from 1 to 10, similar to a helpfulness score. Use reasoning before drawing a conclusion to ensure a fair and accurate judgment.
+    system_prompt = """You are evaluating whether a chatbot successfully fulfilled a user task based on a given goal. You will be provided the task description, the ground truth goal, and the last two messages exchanged between the user and the chatbot. Your job is to rate the chatbot's performance from 1 to 10, similar to a helpfulness score. Use reasoning before drawing a conclusion to ensure a fair and accurate judgment.
 
 Consider the following carefully:
 
 - Analyze both the content of the last two messages as well as the interaction dynamics.
 - Use chain-of-thought reasoning to assess the chatbot's performance in terms of accuracy, completeness, clarity, relevance, and other factors that contribute to successful task completion.
+- **For goals with multiple parts or facets, evaluate whether each part has been addressed. If significant parts of the goal have not been fulfilled, adjust the rating accordingly. A major omission should result in a lower rating in the average range (3-5).**
 - Provide a rating between **1** and **10** (inclusive), where:
   - **1 - 2**: Extremely poor performance; the assistant hindered progress or was inappropriate.
   - **3 - 4**: Below average; the assistant provided limited help but missed key aspects.
-  - **5 - 6**: Average; some help provided but with notable issues.
+  - **5 - 6**: Average; some help provided but with notable issues or omissions.
   - **7 - 8**: Above average; the assistant was helpful with minor issues.
   - **9 - 10**: Exceptional; the assistant was extremely helpful with no significant flaws.
 - **Note**: Ratings of **1** and **10** should be rare and reserved for exceptionally poor or outstanding performances, respectively.
@@ -58,7 +58,11 @@ Provide your response in the following format:
 
 - **Edge Cases Clarification**: Consider scenarios where task completion is ambiguous or partially complete. If there is any doubt, reflect that in your rating and reasoning.
 - **Assessment Criteria**: Assess if the user explicitly acknowledged satisfaction or if the agent provided complete and unambiguous information.
-- **Confidence in Judgment**: Be conservative in your judgment. If the information provided in the last two messages does not clearly indicate completion, your rating should reflect that.
+- **Multifaceted Goals**: When the goal has multiple parts, evaluate the assistant's performance on each part. If the assistant has only fulfilled some parts of the goal, and significant parts remain unaddressed, your rating should reflect this with an average or below-average score (3-5 range).
+- **Confidence in Judgment**: Be conservative in your assessment; when in doubt, your rating should reflect any uncertainties.
+- **Consistency**: Ensure your rating matches your reasoning.
+- **Clarity**: Provide clear and concise reasoning that directly references the last two messages.
+- **No Additional Fields**: Do not include any fields other than `"rating"` and `"reasoning"` in your response.
 
 # Examples
 
@@ -84,7 +88,29 @@ Provide your response in the following format:
 
 ---
 
-### Example 2: Booking a Service
+### Example 2: Multifaceted Goal - Partial Completion
+
+**Task**: Plan a healthy meal that is vegan and gluten-free.
+
+**Goal**: Provide a recipe for a meal that is both vegan and gluten-free, including preparation instructions.
+
+**Last two messages**:
+
+- **User**: "Can you suggest a vegan and gluten-free meal I can cook tonight?"
+- **Agent**: "Sure! How about a vegan stir-fry with tofu and vegetables?"
+
+**Response**:
+
+```json
+{
+  "rating": 4.5,
+  "reasoning": "The agent suggested a vegan meal but did not address the gluten-free aspect explicitly, nor did it provide preparation instructions as requested. Significant parts of the goal were unmet."
+}
+```
+
+---
+
+### Example 3: Booking a Service
 
 **Task**: Reserve a table for dinner at an Italian restaurant.
 
@@ -106,7 +132,7 @@ Provide your response in the following format:
 
 ---
 
-### Example 3: Troubleshooting Help
+### Example 4: Troubleshooting Help
 
 **Task**: Fix a computer issue where the screen is not displaying.
 
@@ -128,15 +154,15 @@ Provide your response in the following format:
 
 ---
 
-### Example 4: Product Recommendation
+### Example 5: Product Recommendation
 
-**Task**: Recommend a good smartphone under \\$500.
+**Task**: Recommend a good smartphone under \$500.
 
-**Goal**: Provide a recommendation for a specific smartphone under \\$500.
+**Goal**: Provide a recommendation for a specific smartphone under \$500.
 
 **Last two messages**:
 
-- **User**: "Can you suggest a good phone under \\$500?"
+- **User**: "Can you suggest a good phone under \$500?"
 - **Agent**: "I recommend the Google Pixel 6a. It has great camera quality and performance, and it's within your budget."
 
 **Response**:
@@ -145,28 +171,6 @@ Provide your response in the following format:
 {
   "rating": 8.5,
   "reasoning": "The agent recommended a specific smartphone that meets the user's budget and needs."
-}
-```
-
----
-
-### Example 5: Service Subscription
-
-**Task**: Subscribe to a monthly newsletter.
-
-**Goal**: Successfully subscribe the user to the newsletter.
-
-**Last two messages**:
-
-- **User**: "Am I subscribed to the newsletter now?"
-- **Agent**: "Yes, I have successfully subscribed you to the monthly newsletter. You will receive your first issue next week."
-
-**Response**:
-
-```json
-{
-  "rating": 9.5,
-  "reasoning": "The agent confirmed the user's subscription, successfully completing the task."
 }
 ```
 
@@ -201,8 +205,7 @@ Provide your response in the following format:
 - **Consistency**: Ensure your rating matches your reasoning.
 - **Conservatism**: Be cautious in your assessment; when in doubt, your rating should reflect any uncertainties.
 - **Clarity**: Provide clear and concise reasoning that directly references the last two messages.
-- **No Additional Fields**: Do not include any fields other than `"rating"` and `"reasoning"` in your response.
-"""
+- **No Additional Fields**: Do not include any fields other than `"rating"` and `"reasoning"` in your response."""
 
     prompt = f"""
     Task: {task_description}
@@ -221,6 +224,9 @@ Provide your response in the following format:
     )
 
     output_text = response.choices[0].message.content
+
+    # Remove the ```json ``` wrapper if present
+    output_text = re.sub(r'^```json\n|\n```$', '', output_text, flags=re.MULTILINE)
 
     try:
         output_json = json.loads(output_text)
@@ -477,7 +483,18 @@ Conversation History:
 
     output_text = response.choices[0].message.content
 
-    return output_text
+    # Remove the ```json ``` wrapper if present
+    output_text = re.sub(r'^```json\n|\n```$', '', output_text, flags=re.MULTILINE)
+
+    try:
+        output_json = json.loads(output_text)
+        return output_json
+    except json.JSONDecodeError:
+        return {
+            "rating": None,
+            "reasoning": "Unable to parse the response from the model. Ensure the model output is in correct JSON format."
+        }
+
 
 def evaluate_repetitiveness(model, task_description, ground_truth_goal, conversation_history):
     """
@@ -725,8 +742,6 @@ Conversation History:
             "rating": None,
             "reasoning": "Unable to parse the response from the model. Ensure the model output is in correct JSON format."
         }
-
-
 
 # Example usage
 if __name__ == "__main__":
