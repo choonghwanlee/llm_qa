@@ -155,6 +155,10 @@ export default function ViewChatHistory() {
                       <span className="ml-2">10</span>
                     </div>
                   </div>
+                  <br></br>
+                  <div>
+                    <span className="font-semibold">Goal Completion Reasoning:</span> {testDetails.goal_completion_reasoning}
+                  </div>
                 </div>
               </CardContent>
             </Card>
