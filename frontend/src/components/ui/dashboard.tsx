@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import {
   Table,
   TableBody,
@@ -10,18 +11,17 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
-import { Settings, User } from "lucide-react"
-import { createClient } from "@supabase/supabase-js"
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { createClient } from "@supabase/supabase-js";
 
 // Initialize Supabase client
-const supabaseUrl = "https://hpqjqscppcxkorulngck.supabase.co"
-const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhwcWpxc2NwcGN4a29ydWxuZ2NrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzA1MTI1MjMsImV4cCI6MjA0NjA4ODUyM30.mQyDxrnj49FcO839wDlIVbSspTXJ2NlienlfeWSq6Lw"
-const supabase = createClient(supabaseUrl, supabaseKey)
+const supabaseUrl = "https://hpqjqscppcxkorulngck.supabase.co";
+const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhwcWpxc2NwcGN4a29ydWxuZ2NrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzA1MTI1MjMsImV4cCI6MjA0NjA4ODUyM30.mQyDxrnj49FcO839wDlIVbSspTXJ2NlienlfeWSq6Lw";
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 interface Test {
-  test_id: number;
+  test_id: string;
   created_at: string;
   task: string;
   goal: string;
@@ -31,73 +31,38 @@ interface Test {
   goal_completion_accuracy: number;
 }
 
-export default function Component() {
-  const [tests, setTests] = useState<Test[]>([])
+export default function Dashboard() {
+  const [tests, setTests] = useState<Test[]>([]);
+  const router = useRouter();
 
   useEffect(() => {
     const fetchTests = async () => {
       const { data, error } = await supabase
         .from('LLMQA')
-        .select('test_id, created_at, task, goal, persona, helpfulness_metric, repetitiveness_metric, goal_completion_accuracy')
+        .select('test_id, created_at, task, goal, persona, helpfulness_metric, repetitiveness_metric, goal_completion_accuracy');
 
       if (error) {
-        console.error("Error fetching tests:", error)
+        console.error("Error fetching tests:", error);
       } else {
         const filteredData = data.filter((test: any) => test.created_at && test.task && test.goal && test.persona && test.helpfulness_metric !== null && test.repetitiveness_metric !== null && test.goal_completion_accuracy !== null) as Test[];
-        setTests(filteredData)
+        setTests(filteredData);
       }
-    }
+    };
 
-    fetchTests()
-  }, [])
+    fetchTests();
+  }, []);
 
   // Calculate summary statistics
-  const totalTests = tests.length
-  const fulfilledTests = tests.filter(test => test.goal_completion_accuracy > 7).length
-  const taskFulfillment = totalTests > 0 ? (fulfilledTests / totalTests) * 100 : 0
+  const totalTests = tests.length;
+  const fulfilledTests = tests.filter(test => test.goal_completion_accuracy > 7).length;
+  const taskFulfillment = totalTests > 0 ? (fulfilledTests / totalTests) * 100 : 0;
   const averageRating = totalTests > 0 ? (tests.reduce((sum, test) => sum + (test.goal_completion_accuracy || 0), 0) / totalTests) * 10 : 0;
   const averageHelpfulness = totalTests > 0 ? (tests.reduce((sum, test) => sum + (test.helpfulness_metric || 0), 0) / totalTests) * 10 : 0;
-  const averageRepetitiveness = totalTests > 0 ? (tests.reduce((sum, test) => sum + (test.repetitiveness_metric || 0), 0) / totalTests) * 10 : 0
+  const averageRepetitiveness = totalTests > 0 ? (tests.reduce((sum, test) => sum + (test.repetitiveness_metric || 0), 0) / totalTests) * 10 : 0;
 
   return (
     <div className="min-h-screen bg-white text-black">
-      {/* Top Navigation */}
-      <header className="border-b bg-white">
-        <div className="flex h-16 items-center px-4">
-          <div className="flex items-center">
-            <img src="/logo.svg" alt="Logo" className="h-10 w-10" />
-            <span className="ml-2 text-xl font-bold">Evalon</span>
-          </div>
-          <nav className="ml-6 flex items-center space-x-4">
-            <Button variant="default">Dashboard</Button>
-          </nav>
-          <div className="ml-auto flex items-center space-x-4">
-            <Button variant="ghost" size="icon">
-              <Settings className="h-5 w-5" />
-            </Button>
-            <Button variant="ghost" size="icon">
-              <User className="h-5 w-5" />
-            </Button>
-          </div>
-        </div>
-      </header>
-
       <div className="flex">
-        {/* Sidebar */}
-        <aside className="w-64 border-r bg-white p-4">
-          <nav className="space-y-2">
-            <Button variant="secondary" className="w-full justify-start">
-              Generate Tasks
-            </Button>
-            <Button variant="ghost" className="w-full justify-start">
-              Run Tasks
-            </Button>
-            <Button variant="ghost" className="w-full justify-start">
-              View Chat History
-            </Button>
-          </nav>
-        </aside>
-
         {/* Main Content */}
         <main className="flex-1 p-6 bg-white">
           <div className="grid gap-6">
@@ -222,7 +187,7 @@ export default function Component() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Created At</TableHead>
+                      <TableHead className="w-48  ">Created At</TableHead>
                       <TableHead>Task</TableHead>
                       <TableHead>Goal</TableHead>
                       <TableHead>Persona</TableHead>
@@ -235,15 +200,15 @@ export default function Component() {
                   <TableBody>
                     {tests.map((test) => (
                       <TableRow key={test.test_id}>
-                        <TableCell>{test.created_at}</TableCell>
+                        <TableCell>{new Date(test.created_at).toLocaleString('en-US', { hour: 'numeric', hour12: true, day: 'numeric', month: 'short', year: 'numeric' })}</TableCell>
                         <TableCell>{test.task}</TableCell>
-                        <TableCell>{test.goal}</TableCell>
+                        <TableCell className="whitespace-normal">{test.goal}</TableCell>
                         <TableCell>{test.persona}</TableCell>
                         <TableCell>{test.helpfulness_metric.toFixed(1)}</TableCell>
                         <TableCell>{test.repetitiveness_metric.toFixed(1)}</TableCell>
                         <TableCell>{test.goal_completion_accuracy.toFixed(1)}</TableCell>
                         <TableCell>
-                          <Button variant="ghost" size="sm">View</Button>
+                          <Button variant="ghost" size="sm" onClick={() => router.push(`/view-chat-history?test_id=${test.test_id}`)}>View</Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -255,5 +220,5 @@ export default function Component() {
         </main>
       </div>
     </div>
-  )
+  );
 }
