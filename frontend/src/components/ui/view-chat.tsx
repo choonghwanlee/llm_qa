@@ -84,7 +84,7 @@ export default function ViewChatHistory() {
           .filter((test: any) => test.conversation && test.conversation.length > 0) // Filter out empty conversations
           .map((test: any) => ({
             id: test.test_id,
-            title: test.task.split(" ").slice(0, 4).join(" ") + (test.task.split(" ").length > 4 ? "..." : ""),
+            title: test.task.length > 25 ? test.task.slice(0, 25) + "..." : test.task,
             date: test.created_at,
           }))
           .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) // Sort in reverse chronological order
