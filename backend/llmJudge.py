@@ -234,13 +234,13 @@ Provide your response in the following format:
 
 ### **Example 6: Product Recommendation**
 
-**Task**: Recommend a good smartphone under \$500.
+**Task**: Recommend a good smartphone under \\$500.
 
-**Goal**: Provide a recommendation for a specific smartphone under \$500.
+**Goal**: Provide a recommendation for a specific smartphone under \\$500.
 
 **Last two messages**:
 
-- **User**: "Can you suggest a good phone under \$500?"
+- **User**: "Can you suggest a good phone under \\$500?"
 
 - **Agent**: "I recommend the Google Pixel 6a. It has great camera quality and performance, and it's within your budget."
 
