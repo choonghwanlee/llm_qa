@@ -22,20 +22,53 @@ def evaluate_test_completion(task_description, ground_truth_goal, user_message, 
     """
 
     
-    system_prompt = """You are evaluating whether a chatbot successfully fulfilled a user task based on a given goal. You will be provided the task description, the ground truth goal, and the last two messages exchanged between the user and the chatbot. Your job is to rate the chatbot's performance from 1 to 10, similar to a helpfulness score. Use reasoning before drawing a conclusion to ensure a fair and accurate judgment.
+    system_prompt = """
 
-Consider the following carefully:
+You are evaluating whether a chatbot has successfully fulfilled a user's task based on a given goal. You will be provided with the task description, the ground truth goal, and the last two messages exchanged between the user and the chatbot. Your job is to:
+
+1. **Rate the chatbot's performance** from 1 to 10, similar to a helpfulness score.
+
+2. **Determine whether the task has been completed** by the agent, focusing on whether the conversation needs to continue or whether the intended goal has been achieved.
+
+Use reasoning before drawing a conclusion to ensure a fair and accurate judgment.
+
+---
+
+**Consider the following carefully:**
 
 - Analyze both the content of the last two messages as well as the interaction dynamics.
+
 - Use chain-of-thought reasoning to assess the chatbot's performance in terms of accuracy, completeness, clarity, relevance, and other factors that contribute to successful task completion.
-- **For goals with multiple parts or facets, evaluate whether each part has been addressed. If significant parts of the goal have not been fulfilled, adjust the rating accordingly. A major omission should result in a lower rating in the average range (3-5).**
-- Provide a rating between **1** and **10** (inclusive), where:
-  - **1 - 2**: Extremely poor performance; the assistant hindered progress or was inappropriate.
-  - **3 - 4**: Below average; the assistant provided limited help but missed key aspects.
-  - **5 - 6**: Average; some help provided but with notable issues or omissions.
-  - **7 - 8**: Above average; the assistant was helpful with minor issues.
-  - **9 - 10**: Exceptional; the assistant was extremely helpful with no significant flaws.
-- **Note**: Ratings of **1** and **10** should be rare and reserved for exceptionally poor or outstanding performances, respectively.
+
+- **For goals with multiple parts or facets, evaluate whether each part has been addressed.** If significant parts of the goal have not been fulfilled, adjust the rating accordingly and set `"taskCompleted": "no"`.
+
+---
+
+**Task Completion Criteria:**
+
+- **Set `"taskCompleted": "yes"` only if the agent has fully and unambiguously achieved the user's goal as specified, without requiring further conversation.**
+
+- **If any significant part of the goal is unmet, or if the user needs to continue the conversation to obtain necessary information, set `"taskCompleted": "no"`.**
+
+- Be conservative in marking `taskCompleted` as `"yes"`. When in doubt, default to `"no"`.
+
+---
+
+**Provide a rating between 1 and 10 (inclusive), where:**
+
+- **1 - 2**: Extremely poor performance; the assistant hindered progress or was inappropriate.
+
+- **3 - 4**: Below average; the assistant provided limited help but missed key aspects.
+
+- **5 - 6**: Average; some help provided but with notable issues or omissions.
+
+- **7 - 8**: Above average; the assistant was helpful with minor issues.
+
+- **9 - 10**: Exceptional; the assistant was extremely helpful with no significant flaws.
+
+**Note**: Ratings of **1** and **10** should be rare and reserved for exceptionally poor or outstanding performances, respectively.
+
+---
 
 # Output Format
 
@@ -44,29 +77,42 @@ Provide your response in the following format:
 ```json
 {
   "rating": [float value between 1 and 10],
-  "reasoning": "Your reasoning here, referencing key aspects of the final two messages."
+  "reasoning": "Your reasoning here, referencing key aspects of the final two messages.",
+  "taskCompleted": "yes" or "no"
 }
 ```
+
+---
 
 # Notes
 
 - Do not guess; use the provided information only.
+
 - Ensure that your reasoning clearly reflects how the user and agent messages point toward fulfillment (or non-fulfillment) of the provided goal.
+
 - **Do not include any additional fields** beyond the specified output format.
+
+---
 
 # Additional Considerations
 
-- **Edge Cases Clarification**: Consider scenarios where task completion is ambiguous or partially complete. If there is any doubt, reflect that in your rating and reasoning.
-- **Assessment Criteria**: Assess if the user explicitly acknowledged satisfaction or if the agent provided complete and unambiguous information.
-- **Multifaceted Goals**: When the goal has multiple parts, evaluate the assistant's performance on each part. If the assistant has only fulfilled some parts of the goal, and significant parts remain unaddressed, your rating should reflect this with an average or below-average score (3-5 range).
-- **Confidence in Judgment**: Be conservative in your assessment; when in doubt, your rating should reflect any uncertainties.
+- **Edge Cases Clarification**: Consider scenarios where task completion is ambiguous or partially complete. If there is any doubt, set `"taskCompleted": "no"` to ensure the conversation continues until the goal is fully achieved.
+
+- **Assessment Criteria**: Assess if the user explicitly acknowledged satisfaction or if the agent provided complete and unambiguous information fulfilling the goal.
+
+- **Multifaceted Goals**: When the goal has multiple parts, evaluate the assistant's performance on each part. If the assistant has only fulfilled some parts of the goal, and significant parts remain unaddressed, `"taskCompleted"` should be `"no"`.
+
+- **Confidence in Judgment**: Be conservative in your assessment; when in doubt, your rating should reflect any uncertainties, and `taskCompleted` should be `"no"`.
+
 - **Consistency**: Ensure your rating matches your reasoning.
+
 - **Clarity**: Provide clear and concise reasoning that directly references the last two messages.
-- **No Additional Fields**: Do not include any fields other than `"rating"` and `"reasoning"` in your response.
+
+---
 
 # Examples
 
-### Example 1: Information Retrieval
+### **Example 1: Information Retrieval**
 
 **Task**: Provide information about the Eiffel Tower.
 
@@ -75,6 +121,7 @@ Provide your response in the following format:
 **Last two messages**:
 
 - **User**: "Can you tell me about the history of the Eiffel Tower?"
+
 - **Agent**: "Sure! The Eiffel Tower was completed in 1889 as the entrance arch for the 1889 World's Fair in Paris. It was initially criticized but is now one of the most recognizable structures in the world."
 
 **Response**:
@@ -82,13 +129,14 @@ Provide your response in the following format:
 ```json
 {
   "rating": 9.0,
-  "reasoning": "The agent provided a clear and informative answer about the Eiffel Tower's history, effectively fulfilling the user's request."
+  "reasoning": "The agent provided a clear and informative answer about the Eiffel Tower's history, effectively fulfilling the user's request.",
+  "taskCompleted": "yes"
 }
 ```
 
 ---
 
-### Example 2: Multifaceted Goal - Partial Completion
+### **Example 2: Multifaceted Goal - Partial Completion**
 
 **Task**: Plan a healthy meal that is vegan and gluten-free.
 
@@ -97,6 +145,7 @@ Provide your response in the following format:
 **Last two messages**:
 
 - **User**: "Can you suggest a vegan and gluten-free meal I can cook tonight?"
+
 - **Agent**: "Sure! How about a vegan stir-fry with tofu and vegetables?"
 
 **Response**:
@@ -104,13 +153,38 @@ Provide your response in the following format:
 ```json
 {
   "rating": 4.5,
-  "reasoning": "The agent suggested a vegan meal but did not address the gluten-free aspect explicitly, nor did it provide preparation instructions as requested. Significant parts of the goal were unmet."
+  "reasoning": "The agent suggested a vegan meal but did not address the gluten-free aspect explicitly, nor did it provide preparation instructions as requested. Significant parts of the goal were unmet.",
+  "taskCompleted": "no"
 }
 ```
 
 ---
 
-### Example 3: Booking a Service
+### **Example 3: Partial Fulfillment with Follow-up**
+
+**Task**: Plan a healthy meal for dinner.
+
+**Goal**: Suggest a healthy dinner recipe that is quick to prepare.
+
+**Last two messages**:
+
+- **User**: "Can you suggest a healthy dinner recipe?"
+
+- **Agent**: "How about a grilled chicken salad? It's healthy and easy to prepare. Do you need the recipe details?"
+
+**Response**:
+
+```json
+{
+  "rating": 6.5,
+  "reasoning": "The agent suggested a healthy and quick meal but did not provide the recipe details as required by the goal. Asking if the user needs the recipe details indicates the task is not yet complete.",
+  "taskCompleted": "no"
+}
+```
+
+---
+
+### **Example 4: Booking a Service**
 
 **Task**: Reserve a table for dinner at an Italian restaurant.
 
@@ -119,6 +193,7 @@ Provide your response in the following format:
 **Last two messages**:
 
 - **User**: "Is the reservation confirmed for tonight at the Italian restaurant?"
+
 - **Agent**: "I'm still trying to reach the restaurant to confirm the reservation. I'll let you know shortly."
 
 **Response**:
@@ -126,13 +201,14 @@ Provide your response in the following format:
 ```json
 {
   "rating": 6.0,
-  "reasoning": "The agent has not yet confirmed the reservation, indicating that the task is still in progress and not fully completed."
+  "reasoning": "The agent has not yet confirmed the reservation, indicating that the task is still in progress and not fully completed.",
+  "taskCompleted": "no"
 }
 ```
 
 ---
 
-### Example 4: Troubleshooting Help
+### **Example 5: Troubleshooting Help**
 
 **Task**: Fix a computer issue where the screen is not displaying.
 
@@ -141,6 +217,7 @@ Provide your response in the following format:
 **Last two messages**:
 
 - **User**: "I tried restarting it, but the screen is still black."
+
 - **Agent**: "Okay, it might be a hardware issue. Please try connecting an external monitor to see if the display appears there."
 
 **Response**:
@@ -148,13 +225,14 @@ Provide your response in the following format:
 ```json
 {
   "rating": 5.5,
-  "reasoning": "The agent suggested a troubleshooting step, but the solution has not been confirmed as successful. The user's issue remains unresolved."
+  "reasoning": "The agent suggested a troubleshooting step, but the solution has not been confirmed as successful. The user's issue remains unresolved.",
+  "taskCompleted": "no"
 }
 ```
 
 ---
 
-### Example 5: Product Recommendation
+### **Example 6: Product Recommendation**
 
 **Task**: Recommend a good smartphone under \$500.
 
@@ -163,6 +241,7 @@ Provide your response in the following format:
 **Last two messages**:
 
 - **User**: "Can you suggest a good phone under \$500?"
+
 - **Agent**: "I recommend the Google Pixel 6a. It has great camera quality and performance, and it's within your budget."
 
 **Response**:
@@ -170,13 +249,14 @@ Provide your response in the following format:
 ```json
 {
   "rating": 8.5,
-  "reasoning": "The agent recommended a specific smartphone that meets the user's budget and needs."
+  "reasoning": "The agent recommended a specific smartphone that meets the user's budget and needs.",
+  "taskCompleted": "yes"
 }
 ```
 
 ---
 
-### Example 6: Ambiguous Completion
+### **Example 7: Ambiguous Completion**
 
 **Task**: Get directions to the nearest gas station.
 
@@ -185,6 +265,7 @@ Provide your response in the following format:
 **Last two messages**:
 
 - **User**: "How do I get to the nearest gas station from here?"
+
 - **Agent**: "There are several gas stations nearby."
 
 **Response**:
@@ -192,7 +273,8 @@ Provide your response in the following format:
 ```json
 {
   "rating": 4.0,
-  "reasoning": "The agent's response is vague and does not provide specific directions as requested by the user."
+  "reasoning": "The agent's response is vague and does not provide specific directions as requested by the user.",
+  "taskCompleted": "no"
 }
 ```
 
@@ -200,13 +282,18 @@ Provide your response in the following format:
 
 # Final Notes
 
-- **Use of the Full Scale**: Remember to utilize the entire rating scale to reflect varying levels of performance.
-- **Rare Use of Extremes**: Reserve ratings of **1** and **10** for truly exceptional cases.
-- **Consistency**: Ensure your rating matches your reasoning.
-- **Conservatism**: Be cautious in your assessment; when in doubt, your rating should reflect any uncertainties.
-- **Clarity**: Provide clear and concise reasoning that directly references the last two messages.
-- **No Additional Fields**: Do not include any fields other than `"rating"` and `"reasoning"` in your response."""
+- **Strict Task Completion Criteria**: Only set `"taskCompleted": "yes"` if the agent has fully met all aspects of the goal without the need for further conversation.
 
+- **Use of the Full Scale**: Remember to utilize the entire rating scale to reflect varying levels of performance.
+
+- **Separate Evaluation**: Ratings and `taskCompleted` are two separate evaluations; ensure both are provided and consistent with your reasoning.
+
+- **Conservatism**: Be cautious in your assessment; when in doubt, your rating should reflect any uncertainties, and `taskCompleted` should be `"no"`.
+
+- **Clarity**: Provide clear and concise reasoning that directly references the last two messages.
+
+- **No Additional Fields**: Do not include any fields other than `"rating"`, `"reasoning"`, and `"taskCompleted"` in your response.
+"""
     prompt = f"""
     Task: {task_description}
     Goal: {ground_truth_goal}
@@ -216,7 +303,7 @@ Provide your response in the following format:
     """
 
     response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-4o",
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt}
@@ -492,7 +579,8 @@ Conversation History:
     except json.JSONDecodeError:
         return {
             "rating": None,
-            "reasoning": "Unable to parse the response from the model. Ensure the model output is in correct JSON format."
+            "reasoning": "Unable to parse the response from the model. Ensure the model output is in correct JSON format.",
+            "taskCompleted": "no"
         }
 
 
@@ -745,88 +833,48 @@ Conversation History:
 
 # Example usage
 if __name__ == "__main__":
+    # Example usage
     test_cases = [
         {
             "task": "Book a flight to New York City.",
             "goal": "Successfully confirm a flight booking to NYC.",
-            "conversation_history": [
-                {"role": "user", "content": "I want to book a flight to New York City."},
-                {"role": "assistant", "content": "Sure, I can help with that. Which dates are you looking to fly?"},
-                {"role": "user", "content": "Next Friday."},
-                {"role": "assistant", "content": "Got it. I have booked a flight for you next Friday at 10 AM. You're all set!"}
-            ]
+            "user_message": "I want to book a flight to New York City.",
+            "agent_message": "Got it. I have booked a flight for you next Friday at 10 AM. You're all set!"
         },
         {
             "task": "Get a recommendation for a CRM software.",
             "goal": "Provide a recommendation for a CRM software suitable for a small business.",
-            "conversation_history": [
-                {"role": "user", "content": "Can you recommend a CRM software for a small business?"},
-                {"role": "assistant", "content": "I recommend HubSpot CRM. It's easy to use and offers a free plan, which is great for small businesses."},
-                {"role": "user", "content": "Any other options?"},
-                {"role": "assistant", "content": "Another good option is Zoho CRM, which is also affordable and feature-rich for small businesses."}
-            ]
+            "user_message": "Can you recommend a CRM software for a small business?",
+            "agent_message": "I recommend HubSpot CRM. It's easy to use and offers a free plan, which is great for small businesses."
         },
-        {
-            "task": "Troubleshoot an email issue.",
-            "goal": "Help the user resolve an issue where they cannot send emails.",
-            "conversation_history": [
-                {"role": "user", "content": "I'm having trouble sending emails."},
-                {"role": "assistant", "content": "Have you checked your internet connection? Sometimes connectivity issues can prevent emails from being sent."},
-                {"role": "user", "content": "Yes, my internet is fine."},
-                {"role": "assistant", "content": "In that case, please check if your outgoing mail server settings are correct. You can find these in your email client's settings."}
-            ]
-        },
-        {
-            "task": "Schedule a meeting with the marketing team.",
-            "goal": "Successfully schedule a meeting with the marketing team for next week.",
-            "conversation_history": [
-                {"role": "user", "content": "Can you schedule a meeting with the marketing team next week?"},
-                {"role": "assistant", "content": "Sure, what day and time works best for you?"},
-                {"role": "user", "content": "Wednesday afternoon."},
-                {"role": "assistant", "content": "Meeting scheduled with the marketing team for Wednesday afternoon. Let me know if there's anything else you need."}
-            ]
-        },
-        {
-            "task": "Get directions to the nearest gas station.",
-            "goal": "Provide clear directions to the nearest gas station.",
-            "conversation_history": [
-                {"role": "user", "content": "Where's the nearest gas station?"},
-                {"role": "assistant", "content": "The nearest gas station is 2 miles away on Main Street."},
-                {"role": "user", "content": "How do I get there?"},
-                {"role": "assistant", "content": "Head north on 1st Avenue, then turn right onto Main Street. The gas station will be on your left."}
-            ]
-        },
-        # Bad assistant example
         {
             "task": "Reset my email password.",
             "goal": "Guide the user through resetting their email password.",
-            "conversation_history": [
-                {"role": "user", "content": "I need to reset my email password."},
-                {"role": "assistant", "content": "Just try again later."},
-                {"role": "user", "content": "Is there any specific way to do it?"},
-                {"role": "assistant", "content": "I don't know, maybe."}
-            ]
+            "user_message": "I need to reset my email password.",
+            "agent_message": "Click on the 'Forgot Password' link on the login page."
         },
-        # Repetitive assistant example
+        # In-progress conversation example
         {
-            "task": "Find a good restaurant nearby.",
-            "goal": "Recommend a good restaurant nearby for dinner.",
-            "conversation_history": [
-                {"role": "user", "content": "Can you recommend a good restaurant nearby?"},
-                {"role": "assistant", "content": "There are many good restaurants nearby."},
-                {"role": "user", "content": "Can you be more specific?"},
-                {"role": "assistant", "content": "There are many good restaurants nearby."},
-                {"role": "user", "content": "Can you name one?"},
-                {"role": "assistant", "content": "There are many good restaurants nearby."}
-            ]
+            "task": "Plan a healthy meal for dinner.",
+            "goal": "Suggest a healthy dinner recipe that is quick to prepare.",
+            "user_message": "Can you suggest a healthy dinner recipe?",
+            "agent_message": "How about a grilled chicken salad? It's healthy and easy to prepare. Do you need the recipe details?"
+        },
+        # In-progress conversation example
+        {
+            "task": "Find a nearby hotel.",
+            "goal": "Provide the user with options for nearby hotels.",
+            "user_message": "I need a hotel nearby.",
+            "agent_message": "There are a few options nearby. Do you have a preference for budget or amenities?"
         }
     ]
 
     for idx, test_case in enumerate(test_cases):
         print(f"\nTest Case {idx + 1}")
-        result = evaluate_repetitiveness("gpt-3.5-turbo",
+        result = evaluate_test_completion(
             test_case['task'],
             test_case['goal'],
-            test_case['conversation_history']
+            test_case['user_message'],
+            test_case['agent_message']
         )
         print(f"Result: {result}")
