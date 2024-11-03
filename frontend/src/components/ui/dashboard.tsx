@@ -160,6 +160,59 @@ export default function Component() {
               </CardContent>
             </Card>
 
+            {/* Personas and Task Categories */}
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Personas Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Personas</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-green-100 p-4 rounded-lg">
+                      <h3 className="font-bold">Best</h3>
+                      <ul className="mt-2 space-y-1">
+                        <li>Angry Uncle <span className="float-right">9.9</span></li>
+                        <li>Young Adult <span className="float-right">8.5</span></li>
+                        <li>Chinese Grandma <span className="float-right">7.3</span></li>
+                      </ul>
+                    </div>
+                    <div className="bg-red-100 p-4 rounded-lg">
+                      <h3 className="font-bold">Worst</h3>
+                      <ul className="mt-2 space-y-1">
+                        <li>Confused Adult <span className="float-right">1.3</span></li>
+                        <li>Soul Gamer <span className="float-right">0.3</span></li>
+                      </ul>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              {/* Task Categories Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Task Categories</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-green-100 p-4 rounded-lg">
+                      <h3 className="font-bold">Best</h3>
+                      <ul className="mt-2 space-y-1">
+                        <li>Scheduling <span className="float-right">8.3</span></li>
+                        <li>Answering Questions <span className="float-right">7.5</span></li>
+                      </ul>
+                    </div>
+                    <div className="bg-red-100 p-4 rounded-lg">
+                      <h3 className="font-bold">Worst</h3>
+                      <ul className="mt-2 space-y-1">
+                        <li>Technical Help <span className="float-right">3.2</span></li>
+                        <li>Complaint Resolution <span className="float-right">3.9</span></li>
+                      </ul>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
             {/* All Tests Table */}
             <Card>
               <CardHeader>
