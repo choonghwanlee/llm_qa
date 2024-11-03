@@ -18,7 +18,7 @@ def evaluate_test_completion(task_description, ground_truth_goal, user_message, 
     - dict: A dictionary containing:
         - 'rating' (float): Rating between 1 and 10.
         - 'reasoning' (str): Explanation of the rating, referencing key aspects of the final two messages.
-        - 'taskCompleted' (bool): True if rating >= 7, else False.
+        - 'taskCompleted' (bool): True if task is completed according to the judge.
     """
 
     
